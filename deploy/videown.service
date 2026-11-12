@@ -1,0 +1,43 @@
+[Unit]
+Description=Videown (downloads com yt-dlp)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=videown
+Group=videown
+EnvironmentFile=/etc/videown.env
+Environment=PATH=/var/lib/videown/bin:/usr/local/bin:/usr/bin:/bin
+Environment=DENO_DIR=/var/lib/videown/deno
+ExecStart=/opt/videown/videown
+Restart=on-failure
+RestartSec=3
+
+# Downloads com prioridade baixa, para não atrapalhar o resto do servidor.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+# Isolamento: o programa só pode escrever na própria pasta de dados.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/videown
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

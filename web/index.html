@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Videown</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="/icon.svg" alt="">Videown</h1>
+    <button class="link" id="sair" type="button">Sair</button>
+  </header>
+
+  <form class="add card" id="novo">
+    <input id="url" name="url" type="url" inputmode="url" placeholder="Cole o link do vídeo" autocomplete="off" required>
+    <select id="format" name="format" aria-label="Formato">
+      <option value="best">Vídeo · melhor</option>
+      <option value="1080">Vídeo · 1080p</option>
+      <option value="720">Vídeo · 720p</option>
+      <option value="480">Vídeo · 480p</option>
+      <option value="mp3">Áudio · MP3</option>
+      <option value="m4a">Áudio · M4A</option>
+    </select>
+    <button class="primary" id="baixar" type="submit">Baixar</button>
+  </form>
+  <p class="erro" id="erro" hidden></p>
+  <p class="muted info" id="info"></p>
+
+  <section class="jobs" id="lista"></section>
+</main>
+</body>
+</html>

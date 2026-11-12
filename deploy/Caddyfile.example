@@ -1,0 +1,5 @@
+# Exemplo de proxy reverso com HTTPS usando o Caddy.
+# Troque example.com pelo seu domínio, copie para /etc/caddy/Caddyfile e rode: sudo systemctl reload caddy
+example.com {
+	reverse_proxy 127.0.0.1:8080
+}
