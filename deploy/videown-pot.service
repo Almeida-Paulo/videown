@@ -1,0 +1,38 @@
+[Unit]
+Description=Videown: gerador de token PO para o YouTube (bgutil-pot)
+After=network-online.target
+Wants=network-online.target
+Before=videown.service
+
+[Service]
+User=videown
+Group=videown
+Environment=HOME=/var/lib/videown/pot
+WorkingDirectory=/var/lib/videown/pot
+ExecStart=/var/lib/videown/bin/bgutil-pot server --host 127.0.0.1 --port 4416
+Restart=on-failure
+RestartSec=5
+Nice=10
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/videown/pot
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

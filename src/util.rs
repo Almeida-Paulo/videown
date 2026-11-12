@@ -98,7 +98,8 @@ pub fn percent_encode(s: &str) -> String {
     out
 }
 
-pub fn parse_form(body: &str) -> HashMap<String, String> {
+/// Todos os pares do formulário, na ordem, inclusive chaves repetidas.
+pub fn parse_form_pairs(body: &str) -> Vec<(String, String)> {
     body.split('&')
         .filter(|p| !p.is_empty())
         .map(|p| match p.split_once('=') {
@@ -106,6 +107,58 @@ pub fn parse_form(body: &str) -> HashMap<String, String> {
             None => (url_decode(p), String::new()),
         })
         .collect()
+}
+
+pub fn parse_form(body: &str) -> HashMap<String, String> {
+    parse_form_pairs(body).into_iter().collect()
+}
+
+/// Lê um valor que o yt-dlp imprimiu com a conversão `j` (JSON).
+/// Strings voltam decodificadas, números ficam como texto e `null`/`NA` viram `None`.
+pub fn json_token(s: &str) -> Option<String> {
+    let s = s.trim();
+    if s.is_empty() || s == "null" || s == "NA" {
+        return None;
+    }
+    let Some(inner) = s.strip_prefix('"').and_then(|r| r.strip_suffix('"')) else {
+        return Some(s.to_string());
+    };
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    let mut pending_high: Option<u32> = None;
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        let e = chars.next()?;
+        let simple = match e {
+            '"' => Some('"'),
+            '\\' => Some('\\'),
+            '/' => Some('/'),
+            'n' => Some('\n'),
+            't' => Some('\t'),
+            'r' => Some('\r'),
+            'b' => Some('\u{8}'),
+            'f' => Some('\u{c}'),
+            'u' => None,
+            _ => return None,
+        };
+        if let Some(ch) = simple {
+            out.push(ch);
+            continue;
+        }
+        let hex: String = chars.by_ref().take(4).collect();
+        let code = u32::from_str_radix(&hex, 16).ok()?;
+        match (pending_high.take(), code) {
+            (None, 0xD800..=0xDBFF) => pending_high = Some(code),
+            (Some(high), 0xDC00..=0xDFFF) => {
+                out.push(char::from_u32(0x10000 + ((high - 0xD800) << 10) + (code - 0xDC00))?);
+            }
+            (_, code) => out.push(char::from_u32(code).unwrap_or('\u{FFFD}')),
+        }
+    }
+    Some(out)
 }
 
 #[cfg(test)]
@@ -119,6 +172,16 @@ mod tests {
         assert_eq!(f["format"], "mp3");
         assert_eq!(f["x"], "✓ ok");
         assert_eq!(f["bad"], "%zz%4");
+    }
+
+    #[test]
+    fn reads_json_tokens() {
+        assert_eq!(json_token(r#""Olá \"mundo\" \u00e9 \ud83d\ude00\n""#).as_deref(), Some("Olá \"mundo\" é 😀\n"));
+        assert_eq!(json_token("212.0").as_deref(), Some("212.0"));
+        assert_eq!(json_token("null"), None);
+        assert_eq!(json_token("NA"), None);
+        let pairs = parse_form_pairs("url=a&url=b&format=mp3");
+        assert_eq!(pairs.iter().filter(|(k, _)| k == "url").count(), 2);
     }
 
     #[test]

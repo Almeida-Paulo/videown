@@ -1,6 +1,6 @@
 [Unit]
 Description=Videown (downloads com yt-dlp)
-After=network-online.target
+After=network-online.target videown-pot.service
 Wants=network-online.target
 
 [Service]

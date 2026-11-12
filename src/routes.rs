@@ -2,7 +2,9 @@
 
 use crate::auth::Auth;
 use crate::http::{Request, Response};
-use crate::jobs::{valid_id, Format, Jobs};
+use crate::info::Info;
+use crate::jobs::{valid_id, Format, Jobs, NewItem};
+use crate::util;
 use crate::storage::Delivery;
 use std::fs::File;
 
@@ -19,7 +21,7 @@ fn login_page(error: &str) -> Response {
     Response::html(LOGIN.replace("{{ERRO}}", &message)).header("Cache-Control", "no-store")
 }
 
-pub fn handle(req: &Request, auth: &Auth, jobs: &Jobs) -> Response {
+pub fn handle(req: &Request, auth: &Auth, jobs: &Jobs, info: &Info) -> Response {
     let method = if req.method == "HEAD" { "GET" } else { req.method.as_str() };
     let path = req.path.as_str();
 
@@ -72,14 +74,32 @@ pub fn handle(req: &Request, auth: &Auth, jobs: &Jobs) -> Response {
             Response::json(200, "{}".into()).header("Set-Cookie", &format!("{SESSION_COOKIE}=; Path=/; Max-Age=0"))
         }
         ("GET", ["api", "jobs"]) => Response::json(200, jobs.list_json()),
-        ("POST", ["api", "jobs"]) => {
+        ("POST", ["api", "info"]) => {
             let form = req.form();
-            let url = form.get("url").map(String::as_str).unwrap_or("");
-            let Some(format) = form.get("format").and_then(|f| Format::parse(f)) else {
+            match info.fetch(form.get("url").map(String::as_str).unwrap_or("")) {
+                Ok(preview) => Response::json(200, preview.to_json()),
+                Err(message) => Response::error(422, &message),
+            }
+        }
+        ("POST", ["api", "jobs"]) => {
+            // Campos url, title e thumbnail podem se repetir: um conjunto por item.
+            let pairs = util::parse_form_pairs(&String::from_utf8_lossy(&req.body));
+            let Some(format) = pairs.iter().find(|(k, _)| k == "format").and_then(|(_, v)| Format::parse(v)) else {
                 return Response::error(400, "Formato desconhecido.");
             };
-            match jobs.add(url, format) {
-                Ok(id) => Response::json(200, format!("{{\"id\":\"{id}\"}}")),
+            let field = |name: &str| -> Vec<&str> { pairs.iter().filter(|(k, _)| k == name).map(|(_, v)| v.as_str()).collect() };
+            let (titles, thumbs) = (field("title"), field("thumbnail"));
+            let items: Vec<NewItem> = field("url")
+                .into_iter()
+                .enumerate()
+                .map(|(i, url)| NewItem {
+                    url: url.to_string(),
+                    title: titles.get(i).unwrap_or(&"").to_string(),
+                    thumbnail: thumbs.get(i).unwrap_or(&"").to_string(),
+                })
+                .collect();
+            match jobs.add(&items, format) {
+                Ok(n) => Response::json(200, format!("{{\"added\":{n}}}")),
                 Err(message) => Response::error(400, message),
             }
         }

@@ -11,26 +11,38 @@
 </head>
 <body>
 <main>
-  <header>
+  <header class="top">
     <h1><img src="/icon.svg" alt="">Videown</h1>
-    <button class="link" id="sair" type="button">Sair</button>
+    <button class="ghost" id="sair" type="button">Sair</button>
   </header>
 
-  <form class="add card" id="novo">
-    <input id="url" name="url" type="url" inputmode="url" placeholder="Cole o link do vídeo" autocomplete="off" required>
-    <select id="format" name="format" aria-label="Formato">
-      <option value="best">Vídeo · melhor</option>
-      <option value="1080">Vídeo · 1080p</option>
-      <option value="720">Vídeo · 720p</option>
-      <option value="480">Vídeo · 480p</option>
-      <option value="mp3">Áudio · MP3</option>
-      <option value="m4a">Áudio · M4A</option>
-    </select>
-    <button class="primary" id="baixar" type="submit">Baixar</button>
-  </form>
-  <p class="erro" id="erro" hidden></p>
-  <p class="muted info" id="info"></p>
+  <section class="composer">
+    <form class="field" id="busca" autocomplete="off">
+      <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5M14 10a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>
+      <input id="url" type="url" inputmode="url" placeholder="Cole o link de um vídeo ou playlist" aria-label="Link" spellcheck="false">
+      <button class="clear" id="limpar" type="button" aria-label="Limpar" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>
+      </button>
+    </form>
 
+    <div id="previa" class="preview" hidden></div>
+
+    <div class="controls">
+      <div class="segmented" role="radiogroup" aria-label="Tipo">
+        <button type="button" role="radio" data-mode="video" aria-checked="true">Vídeo</button>
+        <button type="button" role="radio" data-mode="audio" aria-checked="false">Áudio</button>
+      </div>
+      <select id="qualidade" aria-label="Qualidade"></select>
+      <span class="spacer"></span>
+      <button class="primary" id="baixar" type="button" disabled>Baixar</button>
+    </div>
+    <p class="erro" id="erro" role="alert" hidden></p>
+  </section>
+
+  <div class="section-head">
+    <h2>Recentes</h2>
+    <span class="muted" id="info"></span>
+  </div>
   <section class="jobs" id="lista"></section>
 </main>
 </body>

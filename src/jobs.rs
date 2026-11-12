@@ -18,7 +18,8 @@ extern "C" {
     fn kill(pid: i32, sig: i32) -> i32;
 }
 const SIGKILL: i32 = 9;
-const MAX_WAITING: usize = 50;
+const MAX_WAITING: usize = 500;
+pub const MAX_BATCH: usize = 300;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Status {
@@ -232,6 +233,12 @@ impl Job {
     }
 }
 
+pub struct NewItem {
+    pub url: String,
+    pub title: String,
+    pub thumbnail: String,
+}
+
 pub fn valid_id(id: &str) -> bool {
     id.len() == 16 && id.bytes().all(|b| b.is_ascii_hexdigit())
 }
@@ -284,10 +291,10 @@ pub fn validate_url(url: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
-fn friendly_error(raw: &str) -> String {
+pub fn friendly_error(raw: &str) -> String {
     let has = |words: &[&str]| words.iter().any(|w| raw.to_lowercase().contains(&w.to_lowercase()));
     if has(&["confirm you're not a bot", "confirm you’re not a bot", "sign in to confirm"]) {
-        return "O YouTube bloqueou o servidor com a verificação anti-robô. Configure um arquivo de cookies (veja o README).".into();
+        return "O YouTube bloqueou o servidor com a verificação anti-robô. Veja \"O YouTube bloqueou o servidor\" no README.".into();
     }
     if has(&["unsupported url"]) {
         return "Este site ou link não é suportado.".into();
@@ -412,21 +419,40 @@ impl Jobs {
         Some(job.clone())
     }
 
-    pub fn add(&self, url: &str, format: Format) -> Result<String, &'static str> {
-        let url = url.trim();
-        validate_url(url)?;
-        let job = Job::new(url, format);
+    /// Põe na fila um ou mais links. Título e miniatura vêm da prévia, se houver.
+    pub fn add(&self, items: &[NewItem], format: Format) -> Result<usize, &'static str> {
+        if items.is_empty() {
+            return Err("Nenhum link para baixar.");
+        }
+        if items.len() > MAX_BATCH {
+            return Err("Itens demais de uma vez.");
+        }
+        let mut jobs = Vec::with_capacity(items.len());
+        for item in items {
+            let url = item.url.trim();
+            validate_url(url)?;
+            let mut job = Job::new(url, format);
+            job.title = item.title.trim().chars().take(300).collect();
+            if item.thumbnail.starts_with("https://") && item.thumbnail.len() < 2048 {
+                job.thumbnail = item.thumbnail.clone();
+            }
+            jobs.push(job);
+        }
         {
             let mut state = self.state.lock().unwrap();
-            if state.queue.len() >= MAX_WAITING {
+            if state.queue.len() + jobs.len() > MAX_WAITING {
                 return Err("A fila está cheia. Espere alguns downloads terminarem.");
             }
-            state.jobs.insert(0, job.clone());
-            state.queue.push_back(job.id.clone());
+            for job in &jobs {
+                state.jobs.insert(0, job.clone());
+                state.queue.push_back(job.id.clone());
+            }
         }
-        self.save(&job);
-        self.wake.notify_one();
-        Ok(job.id)
+        for job in &jobs {
+            self.save(job);
+        }
+        self.wake.notify_all();
+        Ok(jobs.len())
     }
 
     pub fn cancel(&self, id: &str) -> bool {
@@ -515,10 +541,9 @@ impl Jobs {
 
     fn command(&self, job: &Job, dir: &Path) -> Command {
         let mut cmd = Command::new(&self.cfg.ytdlp);
-        cmd.args(["--ignore-config", "--no-playlist", "--newline", "--progress", "--no-colors"])
+        cmd.args(self.cfg.base_args())
+            .args(["--no-playlist", "--newline", "--progress"])
             .args(["--windows-filenames", "--no-mtime"])
-            .arg("--cache-dir")
-            .arg(self.cfg.data_dir.join("cache"))
             .arg("-P")
             .arg(dir)
             .args(["-o", "%(title).150B [%(id)s].%(ext)s"])
@@ -531,9 +556,6 @@ impl Jobs {
             .args(["--print", "post_process:RR:S"])
             .args(["--print", "after_move:RR:F %(filepath)s"])
             .args(job.format.args());
-        if let Some(cookies) = &self.cfg.cookies_file {
-            cmd.arg("--cookies").arg(cookies);
-        }
         if let Some(limit) = &self.cfg.max_filesize {
             cmd.args(["--max-filesize", limit]);
         }

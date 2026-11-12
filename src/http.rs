@@ -12,7 +12,7 @@ use std::thread;
 use std::time::Duration;
 
 const MAX_HEADER: usize = 16 * 1024;
-const MAX_BODY: usize = 64 * 1024;
+const MAX_BODY: usize = 1024 * 1024;
 const MAX_CONNECTIONS: usize = 64;
 
 pub struct Request {
@@ -120,6 +120,7 @@ fn reason(status: u16) -> &'static str {
         405 => "Method Not Allowed",
         409 => "Conflict",
         413 => "Payload Too Large",
+        422 => "Unprocessable Entity",
         429 => "Too Many Requests",
         _ => "Error",
     }
@@ -229,7 +230,7 @@ pub fn serve(listener: TcpListener, handler: Arc<Handler>) {
             .stack_size(256 * 1024)
             .spawn(move || {
                 let _slot = slot;
-                let _ = stream.set_read_timeout(Some(Duration::from_secs(15)));
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
                 let _ = stream.set_write_timeout(Some(Duration::from_secs(120)));
                 match read_request(&stream) {
                     Ok(Some(req)) => {

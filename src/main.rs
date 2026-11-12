@@ -2,6 +2,7 @@
 
 mod auth;
 mod http;
+mod info;
 mod jobs;
 mod routes;
 mod storage;
@@ -22,6 +23,33 @@ pub struct Config {
     pub cookies_file: Option<PathBuf>,
     pub max_filesize: Option<String>,
     pub auto_update: bool,
+    pub proxy: Option<String>,
+    pub force_ipv4: bool,
+    pub extractor_args: Option<String>,
+}
+
+impl Config {
+    /// Argumentos comuns a toda chamada do yt-dlp (download e prévia).
+    pub fn base_args(&self) -> Vec<std::ffi::OsString> {
+        let mut a: Vec<std::ffi::OsString> = vec!["--ignore-config".into(), "--no-colors".into(), "--cache-dir".into()];
+        a.push(self.data_dir.join("cache").into());
+        if let Some(cookies) = &self.cookies_file {
+            a.push("--cookies".into());
+            a.push(cookies.into());
+        }
+        if let Some(proxy) = &self.proxy {
+            a.push("--proxy".into());
+            a.push(proxy.into());
+        }
+        if self.force_ipv4 {
+            a.push("--force-ipv4".into());
+        }
+        if let Some(args) = &self.extractor_args {
+            a.push("--extractor-args".into());
+            a.push(args.into());
+        }
+        a
+    }
 }
 
 impl Config {
@@ -50,9 +78,16 @@ impl Config {
             retention_hours: number("VIDEOWN_RETENTION_HOURS", 72)?.max(1),
             cookies_file: var("VIDEOWN_COOKIES_FILE").map(PathBuf::from),
             max_filesize,
-            auto_update: var("VIDEOWN_AUTO_UPDATE").is_none_or(|v| !matches!(v.as_str(), "0" | "false" | "nao" | "não")),
+            auto_update: var("VIDEOWN_AUTO_UPDATE").is_none_or(|v| !is_off(&v)),
+            proxy: var("VIDEOWN_PROXY"),
+            force_ipv4: var("VIDEOWN_FORCE_IPV4").is_some_and(|v| !is_off(&v)),
+            extractor_args: var("VIDEOWN_EXTRACTOR_ARGS"),
         })
     }
+}
+
+fn is_off(v: &str) -> bool {
+    matches!(v.to_lowercase().as_str(), "0" | "false" | "nao" | "não" | "off" | "no")
 }
 
 fn main() {
@@ -80,6 +115,7 @@ fn main() {
         cfg.retention_hours,
         cfg.max_parallel
     );
-    let handler = Arc::new(move |req: &http::Request| routes::handle(req, &auth, &jobs));
+    let info = Arc::new(info::Info::new(cfg.clone()));
+    let handler = Arc::new(move |req: &http::Request| routes::handle(req, &auth, &jobs, &info));
     http::serve(listener, handler);
 }
